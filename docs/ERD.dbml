@@ -1,0 +1,190 @@
+// KickMate — Entity Relationship Diagram
+// Paste this into https://dbdiagram.io to visualize
+// Version: 0.1 | Updated: 2026-05-08
+
+// ─────────────────────────────────────────
+// USERS & PLAYERS
+// ─────────────────────────────────────────
+
+Table players {
+  id                  uuid        [pk, default: `gen_random_uuid()`]
+  phone               varchar(20) [unique, not null]
+  display_name        varchar(100)[not null]
+  avatar_url          text
+  line_id             varchar(100)[unique]
+  preferred_positions varchar(3)[] // e.g. ['CM', 'CAM', 'ST']
+  elo_rating          int         [not null, default: 1000]
+  games_played        int         [not null, default: 0]
+  created_at          timestamptz [default: `now()`]
+  updated_at          timestamptz [default: `now()`]
+}
+
+// ─────────────────────────────────────────
+// STADIUMS
+// ─────────────────────────────────────────
+
+Table stadiums {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  owner_id        uuid        [ref: > players.id]
+  name            varchar(200)[not null]
+  address         text
+  // location stored as PostGIS geography(Point,4326) — not representable in DBML
+  // use: ST_MakePoint(longitude, latitude)::geography
+  latitude        decimal(9,6)[not null]
+  longitude       decimal(9,6)[not null]
+  surface_type    varchar(20) // grass | futsal | turf
+  formats         varchar(10)[] // ['5v5', '7v7', '11v11']
+  price_per_hour  numeric(10,2)[not null]
+  is_active       boolean     [default: true]
+  created_at      timestamptz [default: `now()`]
+}
+
+Table stadium_time_slots {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  stadium_id      uuid        [ref: > stadiums.id, not null]
+  day_of_week     int         // 0=Mon ... 6=Sun
+  open_time       time        [not null]
+  close_time      time        [not null]
+}
+
+// ─────────────────────────────────────────
+// MATCHES
+// ─────────────────────────────────────────
+
+Table matches {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  stadium_id      uuid        [ref: > stadiums.id]
+  created_by      uuid        [ref: > players.id, not null]
+  format          varchar(10) [not null]  // 5v5 | 7v7 | 11v11
+  starts_at       timestamptz [not null]
+  duration_hours  decimal(3,1)[not null, default: 1.5]
+  field_cost      numeric(10,2)[not null, default: 0]
+  skill_min       int         [default: 0]
+  skill_max       int         [default: 9999]
+  status          varchar(20) [default: 'open']
+  // open | full | in_progress | completed | cancelled
+  created_at      timestamptz [default: `now()`]
+}
+
+Table match_teams {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  match_id        uuid        [ref: > matches.id, not null]
+  label           char(1)     [not null]   // 'A' or 'B'
+  treasurer_id    uuid        [ref: > players.id]
+}
+
+Table match_position_slots {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  match_team_id   uuid        [ref: > match_teams.id, not null]
+  position        varchar(3)  [not null]   // GK | CB | LB | RB | CM | LM | RM | CAM | ST
+  filled_by       uuid        [ref: > players.id]  // null = open slot
+  // Constraint: unique(match_team_id, position, ordinal) handled in app logic
+}
+
+// ─────────────────────────────────────────
+// GAME RESULTS & ELO
+// ─────────────────────────────────────────
+
+Table game_results {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  match_id        uuid        [ref: - matches.id, not null]  // one-to-one
+  team_a_score    int         [not null]
+  team_b_score    int         [not null]
+  submitted_by    uuid        [ref: > players.id, not null]
+  submitted_at    timestamptz [default: `now()`]
+  verified        boolean     [default: false]  // both captains confirmed
+}
+
+Table elo_history {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  player_id       uuid        [ref: > players.id, not null]
+  match_id        uuid        [ref: > matches.id, not null]
+  rating_before   int         [not null]
+  rating_after    int         [not null]
+  delta           int         [not null]   // rating_after - rating_before
+  created_at      timestamptz [default: `now()`]
+}
+
+// ─────────────────────────────────────────
+// GANGS & LEADERBOARD
+// ─────────────────────────────────────────
+
+Table gangs {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  name            varchar(200)[not null]
+  created_by      uuid        [ref: > players.id, not null]
+  invite_code     varchar(20) [unique, not null]
+  season_type     varchar(10) [default: 'weekly']  // weekly | monthly
+  created_at      timestamptz [default: `now()`]
+}
+
+Table gang_members {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  gang_id         uuid        [ref: > gangs.id, not null]
+  player_id       uuid        [ref: > players.id, not null]
+  role            varchar(20) [default: 'member']  // admin | member
+  joined_at       timestamptz [default: `now()`]
+
+  indexes {
+    (gang_id, player_id) [unique]
+  }
+}
+
+Table gang_match_records {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  gang_id         uuid        [ref: > gangs.id, not null]
+  match_id        uuid        [ref: > matches.id, not null]
+  winner_label    char(1)     // 'A' | 'B' | null (draw)
+  season_week     int
+  season_year     int
+}
+
+// ─────────────────────────────────────────
+// PAYMENTS
+// ─────────────────────────────────────────
+
+Table team_payments {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  match_team_id   uuid        [ref: > match_teams.id, not null]
+  total_amount    numeric(10,2)[not null]
+  paid_to_stadium boolean     [default: false]
+  paid_at         timestamptz
+  confirmed_by    uuid        [ref: > players.id]  // treasurer who confirmed
+}
+
+Table player_payment_shares {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  team_payment_id uuid        [ref: > team_payments.id, not null]
+  player_id       uuid        [ref: > players.id, not null]
+  amount          numeric(10,2)[not null]
+  confirmed_at    timestamptz  // null = unpaid
+  confirmed_by    uuid        [ref: > players.id]  // self-confirm or treasurer
+
+  indexes {
+    (team_payment_id, player_id) [unique]
+  }
+}
+
+// ─────────────────────────────────────────
+// ANALYTICS EVENT LOG
+// ─────────────────────────────────────────
+
+Table app_events {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  event_type      varchar(50) [not null]
+  // session_started | match_created | player_joined | position_filled
+  // match_filled | game_completed | payment_confirmed | search_empty
+  // stadium_booked | user_dormant
+  user_id         uuid        [ref: > players.id]
+  session_id      uuid
+  latitude        decimal(9,6)
+  longitude       decimal(9,6)
+  payload         jsonb       // event-specific data
+  created_at      timestamptz [default: `now()`]
+
+  indexes {
+    created_at
+    event_type
+    user_id
+  }
+}
