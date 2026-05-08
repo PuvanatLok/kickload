@@ -1,4 +1,4 @@
-# KickMate — Claude Project Context
+# KickLoad — Claude Project Context
 
 ## Who I Am
 - Name: Cartoon (Puvanat)

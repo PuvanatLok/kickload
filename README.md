@@ -1,4 +1,4 @@
-# KickMate — Football Gathering App
+# KickLoad — Football Gathering App
 
 A mobile app for Thai football players to find matches, fill team rosters,
 match by skill level, discover stadiums, track gang leaderboards, and split

@@ -1,5 +1,5 @@
 # Product Requirements Document
-# KickMate — Football Gathering App
+# KickLoad — Football Gathering App
 
 **Version:** 0.1  
 **Status:** Draft  
