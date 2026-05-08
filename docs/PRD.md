@@ -3,7 +3,7 @@
 
 **Version:** 0.1  
 **Status:** Draft  
-**Author:** [Your Name]  
+**Author:** Puvanat  
 **Last Updated:** 2026-05-08
 
 ---
