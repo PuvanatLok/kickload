@@ -1,0 +1,6 @@
+// Copy this file to terraform.tfvars and fill in your values.
+// terraform.tfvars is in .gitignore — never commit it (contains project ID).
+
+project_id = "your-gcp-project-id-here"
+env        = "dev"
+region     = "asia-southeast1"
