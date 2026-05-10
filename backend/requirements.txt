@@ -1,0 +1,49 @@
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+# WHY FASTAPI: async-native, auto-generates OpenAPI docs at /docs,
+# Pydantic validation built in, Python-first (matches DE skills).
+# ALTERNATIVE: Django REST Framework — more batteries included but heavier,
+# slower for API-only services. Flask — simpler but no async, no auto-docs.
+
+# Database
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+geoalchemy2==0.15.0
+# WHY SQLALCHEMY 2.0: async support, type-safe queries, industry standard ORM.
+# WHY ASYNCPG: async PostgreSQL driver — handles concurrent requests without
+# blocking. psycopg2 is sync-only, unsuitable for async FastAPI.
+# WHY ALEMBIC: tracks schema changes as versioned migration files, same as
+# git but for your database. ALTERNATIVE: Flyway (Java-based), Liquibase.
+# WHY GEOALCHEMY2: adds PostGIS geometry types to SQLAlchemy so you can
+# store and query lat/lon as proper geography columns, not plain floats.
+
+# Validation & settings
+pydantic==2.9.0
+pydantic-settings==2.5.0
+# WHY PYDANTIC: FastAPI uses it for request/response validation. V2 is 5-17x
+# faster than V1 due to Rust core. Settings management reads from .env files.
+
+# GCP Pub/Sub
+google-cloud-pubsub==2.27.0
+# WHY THIS OVER A GENERIC KAFKA CLIENT: this is the official GCP library.
+# When billing is ready, zero code changes — just point PUBSUB_EMULATOR_HOST
+# env var at GCP instead of the local emulator.
+
+# Auth & security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+# WHY JOSE: JWT token signing and verification for Supabase Auth integration.
+# ALTERNATIVE: authlib — more complete OAuth2 support for LINE Login Phase 2.
+
+# HTTP client (for calling Supabase Auth, LINE API)
+httpx==0.27.0
+# WHY HTTPX OVER REQUESTS: async-native, same API as requests, works inside
+# async FastAPI route handlers without blocking the event loop.
+
+# Testing
+pytest==8.3.0
+pytest-asyncio==0.24.0
+httpx==0.27.0
+# httpx doubles as the test client for FastAPI — same library, no extra dep.

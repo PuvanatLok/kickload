@@ -1,0 +1,77 @@
+version: "3.9"
+
+# WHY DOCKER COMPOSE FOR LOCAL DEV:
+# Runs PostgreSQL, PostGIS, and the Pub/Sub emulator on your laptop with
+# one command: docker compose up -d
+# Every service is isolated, reproducible, and identical to what runs on GCP.
+# A teammate cloning this repo gets the exact same dev environment.
+# ALTERNATIVE: install PostgreSQL natively — works but pollutes your machine,
+# version conflicts happen, and you can't spin it down cleanly.
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    # WHY POSTGIS IMAGE NOT PLAIN POSTGRES:
+    # Plain postgres:16 does not have PostGIS. This official image includes
+    # PostGIS pre-installed. Version 16-3.4 = PostgreSQL 16 + PostGIS 3.4.
+    container_name: kickload_postgres
+    environment:
+      POSTGRES_DB: kickload
+      POSTGRES_USER: kickload
+      POSTGRES_PASSWORD: kickload_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Named volume persists data between docker compose restarts.
+      # Without this, every restart wipes the database.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kickload"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Healthcheck prevents the backend from starting before postgres is ready.
+      # Without it, the backend crashes on startup because the DB isn't up yet.
+
+  pubsub_emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    # WHY THE OFFICIAL GCP EMULATOR:
+    # Google's Pub/Sub emulator implements the exact same gRPC API as the
+    # cloud service. Your FastAPI publisher code does not change at all
+    # when you switch from emulator to real GCP — only the env var changes.
+    # ALTERNATIVE: localstack (AWS-focused, Pub/Sub support is incomplete).
+    container_name: kickload_pubsub_emulator
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"
+    environment:
+      PUBSUB_PROJECT_ID: kickload-local
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kickload_backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kickload:kickload_dev_password@postgres:5432/kickload
+      PUBSUB_EMULATOR_HOST: pubsub_emulator:8085
+      PUBSUB_PROJECT_ID: kickload-local
+      PUBSUB_TOPIC: kickload-app-events-dev
+      ENV: dev
+    volumes:
+      - ./app:/app/app
+      # Mounts your local app/ folder into the container.
+      # Code changes reflect instantly without rebuilding the image.
+      # REMOVE this volume in prod — the image should be self-contained.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pubsub_emulator:
+        condition: service_started
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # --reload restarts the server when you save a file. Dev only.
+
+volumes:
+  postgres_data:
